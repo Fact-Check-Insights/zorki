@@ -6,7 +6,7 @@ PATH
       capybara
       oj
       selenium-devtools
-      selenium-webdriver (~> 4.32.0)
+      selenium-webdriver (~> 4.40.0)
       typhoeus
 
 GEM
@@ -31,7 +31,7 @@ GEM
       capybara (~> 3.13, < 4)
       websocket-driver (>= 0.6.5)
     ast (2.4.2)
-    base64 (0.2.0)
+    base64 (0.3.0)
     benchmark (0.4.0)
     bigdecimal (3.1.9)
     capybara (3.40.0)
@@ -100,7 +100,7 @@ GEM
     regexp_parser (2.10.0)
     reline (0.6.0)
       io-console (~> 0.5)
-    rexml (3.4.1)
+    rexml (3.4.4)
     rubocop (1.72.2)
       json (~> 2.3)
       language_server-protocol (~> 3.17.0.2)
@@ -145,15 +145,15 @@ GEM
       rbs (>= 3, < 4)
       sorbet-runtime (>= 0.5.10782)
     ruby-progressbar (1.13.0)
-    rubyzip (2.4.1)
+    rubyzip (3.2.2)
     securerandom (0.4.1)
     selenium-devtools (0.136.0)
       selenium-webdriver (~> 4.2)
-    selenium-webdriver (4.32.0)
+    selenium-webdriver (4.40.0)
       base64 (~> 0.2)
       logger (~> 1.4)
       rexml (~> 3.2, >= 3.2.5)
-      rubyzip (>= 1.2.2, < 3.0)
+      rubyzip (>= 1.2.2, < 4.0)
       websocket (~> 1.0)
     sorbet-runtime (0.5.11845)
     stringio (3.1.5)
@@ -175,6 +175,7 @@ GEM
 
 PLATFORMS
   arm64-darwin-22
+  arm64-darwin-24
 
 DEPENDENCIES
   curb (~> 1.0, >= 1.0.5)
@@ -190,4 +191,4 @@ DEPENDENCIES
   zorki!
 
 BUNDLED WITH
-   2.4.9
+   2.4.19
