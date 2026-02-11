@@ -193,6 +193,7 @@ module Zorki
       return true if page.has_xpath?(xpath_login, wait: 2)
       # Occasionally we'll be on a weird page instead of login, so we'll click the login button
       begin
+        dismiss_cookie_consent
         login_button = page.all(:xpath, "//div[text()='Log in'] | //a[text()='Log In']", wait: 2).last
         login_button.click unless login_button.nil?
 
