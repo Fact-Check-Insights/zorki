@@ -9,6 +9,20 @@ require "securerandom"
 require "selenium/webdriver/remote/http/curb"
 require "debug"
 
+module JSON
+  class << self
+    alias_method :original_parse, :parse
+    def parse(source, opts = {})
+      original_parse(source, opts)
+    rescue JSON::ParserError => e
+      raise unless e.message.include?("surrogate")
+
+      sanitized = source.gsub(/\\u[dD][89a-fA-F][0-9a-fA-F]{2}/, "\\uFFFD")
+      original_parse(sanitized, opts)
+    end
+  end
+end
+
 # 2022-06-07 14:15:23 WARN Selenium [DEPRECATION] [:browser_options] :options as a parameter for driver initialization is deprecated. Use :capabilities with an Array of value capabilities/options if necessary instead.
 
 options = Selenium::WebDriver::Options.chrome(exclude_switches: ["enable-automation"])
@@ -120,11 +134,14 @@ module Zorki
 
       # Now that the intercept is set up, we visit the page we want
       page.driver.browser.navigate.to(url)
+      dismiss_cookie_consent
+
       # We wait until the correct intercept is processed or we've waited 60 seconds
       start_time = Time.now
       while response_body.nil? && (Time.now - start_time) < 60
         sleep(0.1)
       end
+
 
       page.driver.execute_script("window.stop();")
 
