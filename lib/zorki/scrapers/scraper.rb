@@ -185,6 +185,15 @@ module Zorki
       false
     end
 
+    def dismiss_cookie_consent
+      puts "looking for cookie accept modal"
+      find_button("Allow all cookies", wait: 10).click()
+      puts "accepting cookies"
+    rescue Capybara::ElementNotFound
+      puts "no cookie warning"
+      # No cookie consent modal shown, continue
+    end
+
     def login(url = "https://instagram.com")
       load_saved_cookies
       # Reset the sessions so that there's nothing laying around
@@ -224,6 +233,8 @@ module Zorki
         end
 
         fill_in("password", with: ENV["INSTAGRAM_PASSWORD"])
+
+        dismiss_cookie_consent
 
         begin
           find_button("Log in").click() # Note: "Log in" (lowercase `in`) should be exact instead, it redirects to Facebook's login page
