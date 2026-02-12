@@ -134,6 +134,10 @@ module Zorki
       # Now that the intercept is set up, we visit the page we want
       page.driver.browser.navigate.to(url)
       dismiss_cookie_consent
+
+      # We'll often get multiple modals and need to dismiss them all...
+      dismiss_modal
+      dismiss_modal
       dismiss_modal
 
       # We wait until the correct intercept is processed or we've waited 60 seconds
