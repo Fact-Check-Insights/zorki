@@ -194,6 +194,7 @@ module Zorki
       # Occasionally we'll be on a weird page instead of login, so we'll click the login button
       begin
         dismiss_cookie_consent
+        dismiss_modal
         login_button = page.all(:xpath, "//div[text()='Log in'] | //a[text()='Log In']", wait: 2).last
         login_button.click unless login_button.nil?
 
@@ -210,6 +211,13 @@ module Zorki
     rescue Capybara::ElementNotFound
       puts "no cookie warning"
       # No cookie consent modal shown, continue
+    end
+
+    def dismiss_modal
+      modal_close = page.all(:xpath, "//svg[arial-label='close']", wait: 5).last
+      modal_close.click unless modal_close.nil?
+    rescue Capybara::ElementNotFound
+      # No modal found, continue
     end
 
     def login(url = "https://instagram.com")
