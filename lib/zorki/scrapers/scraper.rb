@@ -192,21 +192,21 @@ module Zorki
       Capybara.current_driver = :selenium
     end
 
-    # def check_for_login
-    #   xpath_login = '//form[@id="loginForm"]/div/div[3]/button | //input[@type="password"]'
-    #   return true if page.has_xpath?(xpath_login, wait: 2)
-    #   # Occasionally we'll be on a weird page instead of login, so we'll click the login button
-    #   begin
-    #     dismiss_cookie_consent
-    #     dismiss_modal
-    #     login_button = page.all(:xpath, "//div[text()='Log in'] | //a[text()='Log In']", wait: 2).last
-    #     login_button.click unless login_button.nil?
+    def check_for_login
+      xpath_login = '//form[@id="loginForm"]/div/div[3]/button | //input[@type="password"]'
+      return true if page.has_xpath?(xpath_login, wait: 2)
+      # Occasionally we'll be on a weird page instead of login, so we'll click the login button
+      begin
+        dismiss_cookie_consent
+        dismiss_modal
+        login_button = page.all(:xpath, "//div[text()='Log in'] | //a[text()='Log In']", wait: 2).last
+        login_button.click unless login_button.nil?
 
-    #     sleep(5)
-    #     return true if page.has_xpath?(xpath_login, wait: 2)
-    #   rescue Capybara::ElementNotFound; end
-    #   false
-    # end
+        sleep(5)
+        return true if page.has_xpath?(xpath_login, wait: 2)
+      rescue Capybara::ElementNotFound; end
+      false
+    end
 
     def dismiss_cookie_consent
       puts "looking for cookie accept modal"
@@ -228,69 +228,69 @@ module Zorki
     end
 
     def login(url = "https://instagram.com")
-      # load_saved_cookies
-      # # Reset the sessions so that there's nothing laying around
-      # # page.driver.browser.close
+      load_saved_cookies
+      # Reset the sessions so that there's nothing laying around
+      # page.driver.browser.close
 
-      # # Check if we're on a Instagram page already, if not visit it.
+      # Check if we're on a Instagram page already, if not visit it.
 
-      # page.driver.browser.navigate.to(url)
-      # unless page.driver.browser.current_url.include? "instagram.com"
-      #   # There seems to be a bug in the Linux ARM64 version of chromedriver where this will properly
-      #   # navigate but then timeout, crashing it all up. So instead we check and raise the error when
-      #   # that then fails again.
-      #   # page.driver.browser.navigate.to("https://instagram.com")
-      # end
+      page.driver.browser.navigate.to(url)
+      unless page.driver.browser.current_url.include? "instagram.com"
+        # There seems to be a bug in the Linux ARM64 version of chromedriver where this will properly
+        # navigate but then timeout, crashing it all up. So instead we check and raise the error when
+        # that then fails again.
+        # page.driver.browser.navigate.to("https://instagram.com")
+      end
 
-      # # We don't have to login if we already are
-      # begin
-      #   unless page.find(:xpath, "//span[text()='Profile']", wait: 2).nil?
-      #     return
-      #   end
-      # rescue Capybara::ElementNotFound; end
+      # We don't have to login if we already are
+      begin
+        unless page.find(:xpath, "//span[text()='Profile']", wait: 2).nil?
+          return
+        end
+      rescue Capybara::ElementNotFound; end
 
-      # # Check if we're redirected to a login page, if we aren't we're already logged in
-      # return unless check_for_login
+      # Check if we're redirected to a login page, if we aren't we're already logged in
+      return unless check_for_login
 
-      # # Try to log in
-      # loop_count = 0
-      # while loop_count < 5 do
-      #   puts "Attempting to fill login field ##{loop_count}"
+      # Try to log in
+      loop_count = 0
+      while loop_count < 5 do
+        puts "Attempting to fill login field ##{loop_count}"
 
-      #   if page.has_xpath?('//*[@name="username"]')
-      #     fill_in("username", with: ENV["INSTAGRAM_USER_NAME"])
-      #   elsif page.has_xpath?('//*[@name="email"]')
-      #     fill_in("email", with: ENV["INSTAGRAM_USER_NAME"])
-      #   else
-      #     raise "Couldn't find username field"
-      #   end
+        if page.has_xpath?('//*[@name="username"]')
+          fill_in("username", with: ENV["INSTAGRAM_USER_NAME"])
+        elsif page.has_xpath?('//*[@name="email"]')
+          fill_in("email", with: ENV["INSTAGRAM_USER_NAME"])
+        else
+          raise "Couldn't find username field"
+        end
 
-      #   fill_in("password", with: ENV["INSTAGRAM_PASSWORD"])
+        fill_in("password", with: ENV["INSTAGRAM_PASSWORD"])
 
-      #   dismiss_cookie_consent
+        dismiss_cookie_consent
 
-      #   begin
-      #     find_button("Log in").click() # Note: "Log in" (lowercase `in`) should be exact instead, it redirects to Facebook's login page
-      #   rescue Capybara::ElementNotFound; end # If we can't find it don't break horribly, just keep waiting
+        begin
+          find_button("Log in").click() # Note: "Log in" (lowercase `in`) should be exact instead, it redirects to Facebook's login page
+        rescue Capybara::ElementNotFound; end # If we can't find it don't break horribly, just keep waiting
 
-      #   unless has_css?('p[data-testid="login-error-message"', wait: 3)
-      #     save_cookies
-      #     break
-      #   end
-      #   loop_count += 1
-      #   random_length = rand(1...2)
-      #   puts "Sleeping for #{random_length} seconds"
-      #   sleep(random_length)
-      # end
+        unless has_css?('p[data-testid="login-error-message"', wait: 3)
+          save_cookies
+          break
+        end
+        loop_count += 1
+        random_length = rand(1...2)
+        puts "Sleeping for #{random_length} seconds"
+        sleep(random_length)
+      end
 
-      # # Sometimes Instagram just... doesn't let you log in
-      # raise "Instagram not accessible" if loop_count == 5
+      # Sometimes Instagram just... doesn't let you log in
+      raise "Instagram not accessible" if loop_count == 5
 
-      # # No we don't want to save our login credentials
-      # begin
-      #   puts "Checking and clearing Save Info button"
-      #   find_button("Save Info", wait: 2).click()
-      # rescue Capybara::ElementNotFound; end
+      # No we don't want to save our login credentials
+      begin
+        puts "Checking and clearing Save Info button"
+        find_button("Save Info", wait: 2).click()
+      rescue Capybara::ElementNotFound; end
     end
 
     def fetch_image(url)

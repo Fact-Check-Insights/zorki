@@ -20,7 +20,7 @@ module Zorki
       graphql_script = nil
       count = 0
       loop do
-        # login
+        login
         print "Scraping user #{username}... (attempt #{count + 1})\n"
         begin
           # This is searching for a specific request, the reason it's weird is because it's uri encoded
@@ -48,10 +48,10 @@ module Zorki
         rescue Zorki::ContentUnavailableError
           count += 1
 
-          if count > 4
+          if count > 3
             raise Zorki::UserScrapingError.new("Zorki could not find user #{username}", additional_data: { username: username })
-          elsif count > 3
-            # login
+          elsif count > 2
+            login
           end
 
           # page.driver.browser.navigate.to("https://www.instagram.com") # we want to go back to the main page so we start from scratch
