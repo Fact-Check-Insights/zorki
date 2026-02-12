@@ -134,6 +134,7 @@ module Zorki
       # Now that the intercept is set up, we visit the page we want
       page.driver.browser.navigate.to(url)
       dismiss_cookie_consent
+      dismiss_modal
 
       # We wait until the correct intercept is processed or we've waited 60 seconds
       start_time = Time.now
@@ -213,9 +214,12 @@ module Zorki
     end
 
     def dismiss_modal
+      puts "looking for login modal"
       modal_close = page.all(:xpath, '//*[@aria-label="Close"]', wait: 10).last
       modal_close.click unless modal_close.nil?
+      puts "closed login modal"
     rescue Capybara::ElementNotFound
+      puts "modal not found"
       # No modal found, continue
     end
 
