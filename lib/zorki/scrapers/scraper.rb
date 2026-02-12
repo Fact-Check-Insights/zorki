@@ -257,15 +257,11 @@ module Zorki
       while loop_count < 5 do
         puts "Attempting to fill login field ##{loop_count}"
 
-        if page.has_xpath?('//*[@name="username"]')
-          fill_in("username", with: ENV["INSTAGRAM_USER_NAME"])
-        elsif page.has_xpath?('//*[@name="email"]')
-          fill_in("email", with: ENV["INSTAGRAM_USER_NAME"])
-        else
-          raise "Couldn't find username field"
-        end
+        username_field = page.all(:xpath, '//input[@name="username" or @name="email" or @type="text" or @type="email"]').first
+        raise "Couldn't find username field" if username_field.nil?
+        username_field.set(ENV["INSTAGRAM_USER_NAME"])
 
-        fill_in("password", with: ENV["INSTAGRAM_PASSWORD"])
+        find(:xpath, '//input[@type="password"]').set(ENV["INSTAGRAM_PASSWORD"])
 
         dismiss_cookie_consent
 
