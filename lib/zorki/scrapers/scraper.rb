@@ -199,7 +199,7 @@ module Zorki
       begin
         dismiss_cookie_consent
         dismiss_modal
-        login_button = page.all(:xpath, "//div[text()='Log in'] | //a[text()='Log In']", wait: 2).last
+        login_button = page.all(:xpath, "//div[text()='Log in'] | //a[text()='Log In']", wait: 5).last
         login_button.click unless login_button.nil?
 
         sleep(5)
@@ -266,8 +266,11 @@ module Zorki
         dismiss_cookie_consent
 
         begin
-          find_button("Log in").click() # Note: "Log in" (lowercase `in`) should be exact instead, it redirects to Facebook's login page
-        rescue Capybara::ElementNotFound; end # If we can't find it don't break horribly, just keep waiting
+          login_btn = page.all(:xpath, '//form[@id="login_form"]//button[@type="submit"]').first
+          login_btn ||= find_button("Log in")
+          login_btn ||= find_button("Log In")
+          login_btn.click
+        rescue Capybara::ElementNotFound; end
 
         unless has_css?('p[data-testid="login-error-message"', wait: 3)
           save_cookies
