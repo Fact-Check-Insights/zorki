@@ -214,7 +214,7 @@ module Zorki
     end
 
     def dismiss_modal
-      modal_close = page.all(:xpath, "//svg[arial-label='close']", wait: 5).last
+      modal_close = page.all(:xpath, "//svg[arial-label='Close']", wait: 5).last
       modal_close.click unless modal_close.nil?
     rescue Capybara::ElementNotFound
       # No modal found, continue
