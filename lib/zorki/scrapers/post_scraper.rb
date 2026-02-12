@@ -61,7 +61,7 @@ module Zorki
               )
       rescue StandardError
         # if page.has_xpath? "//span[contains(text(), 'Restricted Video')]"
-        login("https://www.instagram.com/p/#{id}/")
+        # login("https://www.instagram.com/p/#{id}/")
 
         begin
           graphql_object = get_content_of_subpage_from_url(
