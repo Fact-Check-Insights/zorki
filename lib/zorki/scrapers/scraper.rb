@@ -107,12 +107,14 @@ module Zorki
           if !response.body&.empty? && response.body
             check_passed = true
             unless additional_search_parameters.nil?
-              puts "checking additional search parameters #{additional_search_parameters}"
               body_to_check = Oj.load(response.body)
 
               search_parameters = additional_search_parameters.split(",")
               search_parameters.each_with_index do |key, index|
-                break if body_to_check.nil?
+                if body_to_check.nil? || !body_to_check.is_a?(Hash)
+                  check_passed = false
+                  break
+                end
 
                 check_passed = false unless body_to_check.has_key?(key)
                 body_to_check = body_to_check[key]
@@ -218,13 +220,22 @@ module Zorki
     end
 
     def dismiss_modal
-      puts "looking for login modal"
-      modal_close = page.all(:xpath, '//*[@aria-label="Close"]', wait: 10).last
+      puts "looking for modal"
+      # Try "Not Now" button (e.g. notifications prompt)
+      not_now = page.all(:xpath, '//button[text()="Not Now" or text()="Not now"]', wait: 3).first
+      if not_now
+        not_now.click
+        puts "dismissed modal with 'Not Now'"
+        return
+      end
+
+      # Try close button
+      modal_close = page.all(:xpath, '//*[@aria-label="Close"]', wait: 3).last
       modal_close.click unless modal_close.nil?
-      puts "closed login modal"
-    rescue Capybara::ElementNotFound
-      puts "modal not found"
-      # No modal found, continue
+      puts "closed modal"
+    rescue Capybara::ElementNotFound, Selenium::WebDriver::Error::ElementClickInterceptedError
+      puts "modal not found or not clickable"
+      # No modal found or couldn't click, continue
     end
 
     def login(url = "https://instagram.com")
@@ -259,18 +270,21 @@ module Zorki
 
         username_field = page.all(:xpath, '//input[@name="username" or @name="email" or @type="text" or @type="email"]').first
         raise "Couldn't find username field" if username_field.nil?
-        username_field.set(ENV["INSTAGRAM_USER_NAME"])
+        username_field.click
+        username_field.send_keys([:control, "a"], :backspace)
+        username_field.send_keys(ENV["INSTAGRAM_USER_NAME"])
 
-        find(:xpath, '//input[@type="password"]').set(ENV["INSTAGRAM_PASSWORD"])
+        password_field = find(:xpath, '//input[@type="password"]')
+        password_field.click
+        password_field.send_keys([:control, "a"], :backspace)
+        password_field.send_keys(ENV["INSTAGRAM_PASSWORD"])
 
         dismiss_cookie_consent
 
-        begin
-          login_btn = page.all(:xpath, '//form[@id="login_form"]//button[@type="submit"]').first
-          login_btn ||= find_button("Log in")
-          login_btn ||= find_button("Log In")
-          login_btn.click
-        rescue Capybara::ElementNotFound; end
+        # Submit the login form via the hidden input[type=submit]
+        sleep(1)
+        page.execute_script('document.querySelector("#login_form input[type=submit]").click()')
+        sleep(3)
 
         unless has_css?('p[data-testid="login-error-message"', wait: 3)
           save_cookies
@@ -290,6 +304,7 @@ module Zorki
         puts "Checking and clearing Save Info button"
         find_button("Save Info", wait: 2).click()
       rescue Capybara::ElementNotFound; end
+
     end
 
     def fetch_image(url)

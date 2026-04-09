@@ -40,29 +40,16 @@ module Zorki
 
       Capybara.app_host = "https://instagram.com"
 
-      # video slideshows https://www.instagram.com/p/CY7KxwYOFBS/?utm_source=ig_embed&utm_campaign=loading
-      #
-      # TODO: Check if post is available publically before trying to login
-      # Should help with the scraping
-      # login
-      # graphql_object = get_content_of_subpage_from_url(
-      #   "https://www.instagram.com/p/#{id}/",
-      #   "/graphql/query",
-      #   "data,xdt_shortcode_media,edge_sidecar_to_children",
-      #   post_data_include: "PolarisPostRootQuery"
-      # )
+      # Navigate to the page first
+      page.driver.browser.navigate.to("https://www.instagram.com/p/#{id}/")
+      dismiss_cookie_consent
+      dismiss_modal
 
-      begin
-        graphql_object = get_content_of_subpage_from_url(
-                "https://www.instagram.com/p/#{id}/",
-                "/graphql/query",
-                nil,
-                post_data_include: "shortcode"
-              )
-      rescue StandardError
-        # if page.has_xpath? "//span[contains(text(), 'Restricted Video')]"
-        login("https://www.instagram.com/p/#{id}/")
+      # Try script tags first (instant)
+      graphql_object = extract_from_script_tags
 
+      # Only fall back to interceptor if script tags didn't have it
+      if graphql_object.nil?
         begin
           graphql_object = get_content_of_subpage_from_url(
             "https://www.instagram.com/p/#{id}/",
@@ -70,20 +57,21 @@ module Zorki
             nil,
             post_data_include: "shortcode"
           )
-        rescue StandardError; end # TODO: Should do something here
-        # end
+        rescue StandardError
+          login("https://www.instagram.com/p/#{id}/")
 
-        if graphql_object.nil?
-          # node = page.all('body script', visible: false).find {|s| s.text(:all).include? "Switzerland"}
-          script_nodes = page.all("body script", visible: false)
-          node = script_nodes.find { |s| s.text(:all).include? "xdt_api__v1__media__shortcode__web_info" }
-          unless node.nil?
-            json = JSON.parse(node.text(:all))
-            graphql_object = json["require"][0][3][0]["__bbox"]["require"][0][3][1]["__bbox"]["result"]
-          else
-            node = script_nodes.find { |s| s.text(:all).include? "xdt_api__v1__profile_timeline" } if node.nil?
-            json = JSON.parse(node.text(:all))
-            graphql_object = json["require"][0][3][0]["__bbox"]["require"][0][3][1]["__bbox"]["result"]["data"]["xdt_api__v1__profile_timeline"]
+          # After login, try script tags again first
+          graphql_object = extract_from_script_tags
+
+          if graphql_object.nil?
+            begin
+              graphql_object = get_content_of_subpage_from_url(
+                "https://www.instagram.com/p/#{id}/",
+                "/graphql/query",
+                nil,
+                post_data_include: "shortcode"
+              )
+            rescue StandardError; end
           end
         end
       end
@@ -249,6 +237,25 @@ module Zorki
         user: user,
         id: id
       }
+    end
+
+    def extract_from_script_tags
+      script_nodes = page.all("body script", visible: false)
+      node = script_nodes.find { |s| s.text(:all).include? "xdt_api__v1__media__shortcode__web_info" }
+      unless node.nil?
+        json = JSON.parse(node.text(:all))
+        return json["require"][0][3][0]["__bbox"]["require"][0][3][1]["__bbox"]["result"]
+      end
+
+      node = script_nodes.find { |s| s.text(:all).include? "xdt_api__v1__profile_timeline" }
+      unless node.nil?
+        json = JSON.parse(node.text(:all))
+        return json["require"][0][3][0]["__bbox"]["require"][0][3][1]["__bbox"]["result"]["data"]["xdt_api__v1__profile_timeline"]
+      end
+
+      nil
+    rescue StandardError
+      nil
     end
 
     def take_screenshot
