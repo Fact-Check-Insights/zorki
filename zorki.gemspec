@@ -34,7 +34,6 @@ Gem::Specification.new do |spec|
   spec.add_dependency "typhoeus" # For making API requests
   spec.add_dependency "oj" # A faster JSON parser/loader than stdlib
   spec.add_dependency "selenium-webdriver", "~> 4.40.0" # Webdriver selenium
-  spec.add_dependency "selenium-devtools" # Allow us to intercept requests
 
   spec.add_development_dependency "debug"
 
