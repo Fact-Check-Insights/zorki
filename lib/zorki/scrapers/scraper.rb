@@ -71,46 +71,138 @@ module Zorki
     #
     # @returns Hash a ruby hash of the JSON data
     def get_content_of_subpage_from_url(url, subpage_search, additional_search_parameters = nil, post_data_include: nil, header: nil)
-      # So this is fun:
-      # For pages marked as misinformation we have to use one method (interception of requrest) and
-      # for pages that are not, we can just pull the data straight from the page.
-      #
-      # How do we figure out which is which?... for now we'll just run through both and see where we
-      # go with it.
-
       # Our user data no longer lives in the graphql object passed initially with the page.
-      # Instead it comes in as part of a subsequent call. This intercepts all calls, checks if it's
-      # the one we want, and then moves on.
+      # Instead it comes in as part of a subsequent call. We inject JavaScript to capture
+      # fetch/XHR responses, avoiding the selenium-devtools CDP version dependency entirely.
       response_body = nil
+      script_id = nil
 
-      page.driver.browser.intercept do |request, &continue|
-        # This passes the request forward unmodified, since we only care about the response
-        continue.call(request) && next unless request.url.include?(subpage_search)
-        if !header.nil?
-          header_key = header.keys.first.to_s
-          header_value = header.values.first
+      # Inject a JS interceptor that runs before any page scripts via CDP.
+      # This uses execute_cdp which goes through ChromeDriver directly,
+      # bypassing the selenium-devtools gem and its version checks.
+      begin
+        interceptor_js = <<~JS
+          window.__zorki_responses = [];
 
-          # puts "Request Header included? #{request.headers.include?(header_key)} #{request.headers[header_key]} == #{header_value}"
-          continue.call(request) && next unless request.headers.include?(header_key) && request.headers[header_key] == header_value
+          (function() {
+            var origFetch = window.fetch;
+            window.fetch = function(input, init) {
+              return origFetch.apply(this, arguments).then(function(response) {
+                try {
+                  var clone = response.clone();
+                  var reqUrl = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input));
+                  var requestHeaders = {};
+                  if (input instanceof Request) {
+                    input.headers.forEach(function(value, key) { requestHeaders[key] = value; });
+                  }
+                  if (init && init.headers) {
+                    if (init.headers instanceof Headers) {
+                      init.headers.forEach(function(value, key) { requestHeaders[key] = value; });
+                    } else if (typeof init.headers === 'object') {
+                      var entries = Object.entries(init.headers);
+                      for (var i = 0; i < entries.length; i++) {
+                        requestHeaders[entries[i][0]] = String(entries[i][1]);
+                      }
+                    }
+                  }
+                  var postData = null;
+                  if (init && init.body) {
+                    if (typeof init.body === 'string') { postData = init.body; }
+                    else if (init.body instanceof URLSearchParams) { postData = init.body.toString(); }
+                  }
+                  clone.text().then(function(body) {
+                    window.__zorki_responses.push({
+                      url: reqUrl,
+                      body: body,
+                      post_data: postData,
+                      request_headers: requestHeaders
+                    });
+                  });
+                } catch(e) {}
+                return response;
+              });
+            };
 
-        elsif !post_data_include.nil?
-          continue.call(request) && next unless request.post_data&.include?(post_data_include)
-          begin
-            JSON.parse(request.post_data)
-          rescue JSON::ParserError
-            continue.call(request) && next
-          end
-        end
+            var origXHROpen = XMLHttpRequest.prototype.open;
+            var origXHRSend = XMLHttpRequest.prototype.send;
+            var origXHRSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
 
-        continue.call(request) do |response|
-          # Check if not a CORS prefetch and finish up if not
-          if !response.body&.empty? && response.body
+            XMLHttpRequest.prototype.open = function(method, url) {
+              this.__zorki_url = typeof url === 'string' ? url : String(url);
+              this.__zorki_headers = {};
+              return origXHROpen.apply(this, arguments);
+            };
+
+            XMLHttpRequest.prototype.setRequestHeader = function(key, value) {
+              if (this.__zorki_headers) this.__zorki_headers[key] = value;
+              return origXHRSetRequestHeader.apply(this, arguments);
+            };
+
+            XMLHttpRequest.prototype.send = function(body) {
+              var self = this;
+              var postData = body ? String(body) : null;
+              this.addEventListener('load', function() {
+                try {
+                  window.__zorki_responses.push({
+                    url: self.__zorki_url,
+                    body: self.responseText,
+                    post_data: postData,
+                    request_headers: self.__zorki_headers || {}
+                  });
+                } catch(e) {}
+              });
+              return origXHRSend.apply(this, arguments);
+            };
+          })();
+        JS
+
+        result = page.driver.browser.execute_cdp('Page.addScriptToEvaluateOnNewDocument', source: interceptor_js)
+        script_id = result['identifier']
+      rescue StandardError => e
+        puts "Warning: Could not inject network interceptor: #{e.message}"
+      end
+
+      # Now visit the page — the injected script will capture API responses
+      page.driver.browser.navigate.to(url)
+      dismiss_cookie_consent
+
+      # We'll often get multiple modals and need to dismiss them all...
+      dismiss_modal
+      dismiss_modal
+      dismiss_modal
+
+      # Poll for the matching intercepted response (up to 60 seconds)
+      start_time = Time.now
+      while response_body.nil? && (Time.now - start_time) < 60
+        begin
+          responses = page.driver.browser.execute_script('return window.__zorki_responses || []')
+
+          responses.each do |resp|
+            next unless resp['url']&.include?(subpage_search)
+
+            if !header.nil?
+              header_key = header.keys.first.to_s
+              header_value = header.values.first
+              req_headers = resp['request_headers'] || {}
+              matching = req_headers.find { |k, _v| k.casecmp(header_key).zero? }
+              next unless matching && matching[1] == header_value
+            elsif !post_data_include.nil?
+              next unless resp['post_data']&.include?(post_data_include)
+              begin
+                JSON.parse(resp['post_data'])
+              rescue JSON::ParserError
+                next
+              end
+            end
+
+            next if resp['body'].nil? || resp['body'].empty?
+
             check_passed = true
             unless additional_search_parameters.nil?
-              body_to_check = Oj.load(response.body)
+              body_to_check = Oj.load(resp['body'])
 
               search_parameters = additional_search_parameters.split(",")
-              search_parameters.each_with_index do |key, index|
+              search_parameters.each do |key|
                 if body_to_check.nil? || !body_to_check.is_a?(Hash)
                   check_passed = false
                   break
@@ -121,49 +213,28 @@ module Zorki
               end
             end
 
-            next if check_passed == false
-            response_body = response.body if check_passed == true
+            next unless check_passed
+            response_body = resp['body']
+            break
           end
+        rescue StandardError
+          # Page might still be loading, keep polling
         end
-      rescue Selenium::WebDriver::Error::WebDriverError
-        # Eat them
-      rescue StandardError => e
-        puts "***********************************************************"
-        puts "Error in intercept: #{e}"
-        puts "***********************************************************"
+
+        sleep(0.1) if response_body.nil?
       end
-
-      # Now that the intercept is set up, we visit the page we want
-      page.driver.browser.navigate.to(url)
-      dismiss_cookie_consent
-
-      # We'll often get multiple modals and need to dismiss them all...
-      dismiss_modal
-      dismiss_modal
-      dismiss_modal
-
-      # We wait until the correct intercept is processed or we've waited 60 seconds
-      start_time = Time.now
-      while response_body.nil? && (Time.now - start_time) < 60
-        sleep(0.1)
-      end
-
 
       page.driver.execute_script("window.stop();")
 
-      # 1. Fix the ability to dettect if a page is removed -DONE
-      # 2. Fix videos for slideshows - Works for reels?
-      # 3. Public liinks
-
-      # Check if something failed before we continue. Use the fake test to test
       raise ContentUnavailableError.new("Response body nil") if response_body.nil?
 
       Oj.load(response_body)
     ensure
-      # page.quit
-      # TRY THIS TO MAKE SURE CHROME GETS CLOSED?
-      # We may also want to not do this and make sure the same browser is reused instead for cookie purposes
-      # NOW wer'e trying this 2024-05-28
+      if script_id
+        begin
+          page.driver.browser.execute_cdp('Page.removeScriptToEvaluateOnNewDocument', identifier: script_id)
+        rescue StandardError; end
+      end
     end
 
   private
